@@ -1,0 +1,31 @@
+{
+  "hardware": {
+    "name": "Raspberry Pi 5 8GB",
+    "cpu_cores": 4,
+    "cpu_ghz": 2.4,
+    "ram_mb": 8192,
+    "reserved_ram_mb": 1200
+  },
+  "audio": {
+    "sample_rate_hz": 48000,
+    "buffer_samples": 128
+  },
+  "workload": {
+    "name": "Synthetic native ARM synth baseline",
+    "backend": "native-arm64",
+    "dsp_mean_ms": 0.65,
+    "dsp_jitter_ms": 0.12,
+    "host_mean_ms": 0.10,
+    "host_jitter_ms": 0.03,
+    "translation_multiplier": 1.0,
+    "scheduler_spike_probability": 0.0005,
+    "scheduler_spike_ms": 0.35,
+    "plugin_ram_mb": 650,
+    "runtime_ram_mb": 300,
+    "sample_ram_mb": 250
+  },
+  "simulation": {
+    "callbacks": 100000,
+    "seed": 42
+  }
+}
