@@ -39,3 +39,15 @@ Pass criteria:
 
 Pass criteria:
 - simple non-DRM x86-64 Windows VST3 runs via compatibility worker with usable latency and stability
+
+## v0.2 status
+
+- [x] Desktop machine profiler
+- [x] Versioned benchmark JSON schema
+- [x] Native C++ callback timing harness
+- [x] Synthetic DSP processor for instrumentation validation
+- [x] Python bridge/CLI that combines native timings with machine metadata
+- [x] C++ processor abstraction designed for a VST3 adapter
+- [ ] Real VST3 adapter and controlled MIDI event generator
+- [ ] Real plugin benchmark profiles
+- [ ] Explicit Mac-to-Pi projection model calibrated with external/physical data

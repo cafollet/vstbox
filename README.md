@@ -120,3 +120,50 @@ git pull
 ```
 
 If no remote has been configured yet, the repository still works normally as a local Git repository; a remote can be attached later without changing the project layout.
+
+
+## Intel macOS Python note
+
+If `python3` points to an older system Python, explicitly select a newer interpreter, for example:
+
+```bash
+PYTHON_BIN=/usr/local/bin/python3.13 ./scripts/bootstrap_macos.sh
+```
+
+The bootstrap script now also searches for Python 3.13 through 3.10 automatically.
+
+## v0.2: measured desktop benchmark baseline
+
+v0.2 adds the first measured benchmark layer:
+
+- `vstbox-machine` captures the reference computer's CPU, architecture, RAM, and OS metadata.
+- `native/` contains a small C++17 realtime-style processing interface and synthetic DSP workload.
+- `vstbox-bench-synthetic` runs that native workload and stores machine + audio + timing metadata in one JSON result.
+- `docs/BENCHMARKING.md` defines the benchmark methodology and the boundary for the upcoming VST3 adapter.
+
+On macOS, after the Python environment is active:
+
+```bash
+brew install cmake ninja   # only if these are not already installed
+./scripts/run_v02_smoke.sh
+```
+
+Or run each stage separately:
+
+```bash
+vstbox-machine --json-out benchmarks/profiles/current_machine.json
+./scripts/build_native.sh
+vstbox-bench-synthetic --voices 16 --json-out benchmarks/results/synthetic_16v_48k_128.json
+```
+
+The v0.2 synthetic C++ workload validates measurement infrastructure; it is not yet a real VST plugin. The next native implementation step replaces `SyntheticProcessor` with a VST3-backed `AudioProcessor` while keeping the benchmark/result format stable.
+
+For an optional real-VST3 **functional** smoke test using Steinberg's external reference host:
+
+```bash
+./scripts/fetch_vst3_sdk.sh
+./scripts/build_vst3_reference_host.sh
+./scripts/vst3_reference_smoke.sh /path/to/Plugin.vst3
+```
+
+The SDK checkout stays under `external/vst3sdk/` and is ignored by Git.

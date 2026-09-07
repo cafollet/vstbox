@@ -8,3 +8,22 @@ dist/
 .venv/
 .DS_Store
 .vscode/settings.json
+benchmarks/profiles/*.json
+benchmarks/results/*.json
+external/vst3sdk/
+build/vst3sdk/
+
+# Local development
+.venv/
+.DS_Store
+__pycache__/
+*.pyc
+
+# Generated builds
+build/
+
+# Re-downloadable external dependencies
+external/
+
+# VSTBox update backups
+.vstbox_update_backup_*/
