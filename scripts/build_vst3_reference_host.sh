@@ -15,6 +15,26 @@ if ! command -v cmake >/dev/null 2>&1; then
   exit 1
 fi
 
+# Steinberg VST3 SDK 3.8.1's macOS audiohost sample uses Foundation classes
+# but its sample CMake target may only link CoreFoundation. Apply a narrow,
+# idempotent local patch to the downloaded SDK; external/ remains untracked.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  AUDIOHOST_CMAKE="$SDK_DIR/public.sdk/samples/vst-hosting/audiohost/CMakeLists.txt"
+  if [[ -f "$AUDIOHOST_CMAKE" ]] && ! grep -q '\-framework Foundation' "$AUDIOHOST_CMAKE"; then
+    python3 - "$AUDIOHOST_CMAKE" <<'PY2'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+text = p.read_text()
+old = 'set(audiohost_PLATFORM_LIBS "-framework CoreFoundation")'
+new = 'set(audiohost_PLATFORM_LIBS "-framework CoreFoundation" "-framework Foundation")'
+if old in text:
+    p.write_text(text.replace(old, new))
+    print("Applied local Foundation.framework patch to Steinberg audiohost.")
+PY2
+  fi
+fi
+
 GENERATOR_ARGS=()
 if command -v ninja >/dev/null 2>&1; then
   GENERATOR_ARGS=(-G Ninja)

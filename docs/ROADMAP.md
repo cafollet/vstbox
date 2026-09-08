@@ -51,3 +51,17 @@ Pass criteria:
 - [ ] Real VST3 adapter and controlled MIDI event generator
 - [ ] Real plugin benchmark profiles
 - [ ] Explicit Mac-to-Pi projection model calibrated with external/physical data
+
+## v0.3 status
+
+- [x] Offline VST3 module loading behind the native benchmark layer
+- [x] Audio component discovery and 32-bit process setup
+- [x] Audio/event bus activation
+- [x] Parameter metadata enumeration when a controller is available
+- [x] Deterministic audio-input stimulus for effects
+- [x] Deterministic MIDI note events for instruments
+- [x] Real VST3 callback timing + peak RSS JSON output
+- [x] Python CLI combining plug-in measurements with machine metadata
+- [ ] Run and record the first `adelay.vst3` benchmark on the Intel Mac
+- [ ] Run and record the first instrument/synth benchmark
+- [ ] Add explicit Mac-to-Pi projection model calibrated against public/physical data

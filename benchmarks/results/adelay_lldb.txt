@@ -1,0 +1,21 @@
+(lldb) target create "build/native-vst3/vstbox_vst3_bench"
+Current executable set to '/Users/callumfollett/Desktop/vstbox/build/native-vst3/vstbox_vst3_bench' (x86_64).
+(lldb) run --plugin build/vst3sdk-plugin-smoke/VST3/Release/adelay.vst3 --sample-rate 48000 --buffer 128 --callbacks 1 --warmup 0 --no-midi
+Process 50746 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = EXC_BAD_ACCESS (code=1, address=0x0)
+    frame #0: 0x0000000100009480 vstbox_vst3_bench`vstbox::Vst3Processor::Impl::load(vstbox::Vst3PluginInfo&) + 2144
+vstbox_vst3_bench`vstbox::Vst3Processor::Impl::load:
+->  0x100009480 <+2144>: movl   %ecx, (%rax)
+    0x100009482 <+2146>: movq   0x10(%r13), %rcx
+    0x100009486 <+2150>: movq   %rcx, 0x18(%rax)
+    0x10000948a <+2154>: movups (%r13), %xmm0
+Target 0: (vstbox_vst3_bench) stopped.
+Process 50746 launched: '/Users/callumfollett/Desktop/vstbox/build/native-vst3/vstbox_vst3_bench' (x86_64)
+(lldb) bt all
+* thread #1, queue = 'com.apple.main-thread', stop reason = EXC_BAD_ACCESS (code=1, address=0x0)
+  * frame #0: 0x0000000100009480 vstbox_vst3_bench`vstbox::Vst3Processor::Impl::load(vstbox::Vst3PluginInfo&) + 2144
+    frame #1: 0x0000000100008b48 vstbox_vst3_bench`vstbox::Vst3Processor::Impl::Impl(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, vstbox::MidiDriveConfig, vstbox::Vst3PluginInfo&) + 280
+    frame #2: 0x0000000100007892 vstbox_vst3_bench`std::__1::__unique_if<vstbox::Vst3Processor::Impl>::__unique_single std::__1::make_unique[abi:v160006]<vstbox::Vst3Processor::Impl, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, vstbox::MidiDriveConfig&, vstbox::Vst3PluginInfo&>(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>&&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>&&, vstbox::MidiDriveConfig&, vstbox::Vst3PluginInfo&) + 146
+    frame #3: 0x0000000100007927 vstbox_vst3_bench`vstbox::Vst3Processor::Vst3Processor(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, vstbox::MidiDriveConfig) + 55
+    frame #4: 0x0000000100004b82 vstbox_vst3_bench`main + 2306
+    frame #5: 0x00007ff809594418 dyld`start + 1896

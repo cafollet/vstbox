@@ -174,6 +174,24 @@ For an optional real-VST3 **functional** smoke test using Steinberg's external r
 
 The SDK checkout stays under `external/vst3sdk/` and is ignored by Git.
 
+## v0.3 — real VST3 benchmarking
+
+VSTBox can now load a real VST3 bundle through a native offline host and benchmark its processing callbacks without JACK or an audio device. The benchmark records plug-in metadata/parameters, P50/P95/P99/worst processing time, deadline misses, latency, and peak memory while keeping desktop measurements separate from Raspberry Pi projections.
+
+```bash
+./scripts/fetch_vst3_sdk.sh
+./scripts/build_vst3_benchmark.sh
+vstbox-bench-vst3 --plugin /path/to/Plugin.vst3 --json-out benchmarks/results/plugin.json
+```
+
+For the Steinberg `adelay` sample already used for validation:
+
+```bash
+./scripts/run_adelay_benchmark.sh
+```
+
+See `docs/BENCHMARKING.md` for the benchmark methodology and instrument/MIDI options.
+
 ## License
 
 Original VSTBox code and documentation in this repository are released under the [MIT License](LICENSE), unless a file states otherwise.
