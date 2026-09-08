@@ -2,6 +2,12 @@
 
 This repository is the first executable stage of the VSTBox project: a standalone hardware appliance intended to host software instruments/effects without requiring a laptop during use.
 
+## Project status and independence
+
+VSTBox is an **independent, developer-led prototype and research project created by Callum Follett**. It is not currently a product of, sponsored by, endorsed by, or representative of any company, employer, plug-in vendor, Steinberg Media Technologies GmbH, or hardware manufacturer.
+
+The project is exploring the technical feasibility of a standalone hardware host for software instruments and effects, beginning with inexpensive ARM hardware such as Raspberry Pi-class devices. Results in this repository should be treated as prototype/research findings rather than product guarantees or compatibility certifications.
+
 ## Current goal
 
 Before buying a Raspberry Pi 5, determine whether an 8 GB Pi 5 is *plausibly* capable of the target workloads.
@@ -104,7 +110,7 @@ The repo includes VS Code extension recommendations for Python, C/C++, CMake, an
 
 ## Git workflow
 
-For ongoing synchronization, use a private Git remote (GitHub or another Git server) rather than exchanging ZIP files. A typical workflow is:
+For ongoing synchronization, use the Git remote (for example the public GitHub repository) rather than exchanging ZIP files. A typical workflow is:
 
 ```bash
 git status
@@ -167,3 +173,14 @@ For an optional real-VST3 **functional** smoke test using Steinberg's external r
 ```
 
 The SDK checkout stays under `external/vst3sdk/` and is ignored by Git.
+
+## License
+
+Original VSTBox code and documentation in this repository are released under the [MIT License](LICENSE), unless a file states otherwise.
+
+Third-party software is **not** relicensed by VSTBox. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency and plug-in licensing notes. In particular, the Steinberg VST 3 SDK and test plug-ins are fetched or supplied separately rather than committed as VSTBox source.
+
+## Third-party names and trademarks
+
+VST, VST3, Steinberg, Raspberry Pi, and other third-party names, products, and trademarks belong to their respective owners. References in this repository are descriptive and do not imply affiliation, endorsement, or certification.
+
