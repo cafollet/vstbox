@@ -6,13 +6,13 @@ This repository is the first executable stage of the VSTBox project: a standalon
 
 VSTBox is an **independent, developer-led prototype and research project created by Callum Follett**. It is not currently a product of, sponsored by, endorsed by, or representative of any company, employer, plug-in vendor, Steinberg Media Technologies GmbH, or hardware manufacturer.
 
-The project is exploring the technical feasibility of a standalone hardware host for software instruments and effects, beginning with inexpensive ARM hardware such as Raspberry Pi-class devices. Results in this repository should be treated as prototype/research findings rather than product guarantees or compatibility certifications.
+The project is exploring the technical feasibility of a standalone hardware host for software instruments and effects, beginning with inexpensive ARM hardware such as Raspberry Pi-class devices.
 
 ## Current goal
 
-Before buying a Raspberry Pi 5, determine whether an 8 GB Pi 5 is *plausibly* capable of the target workloads.
+Before implementing a Raspberry Pi 5, determine whether an 8 GB Pi 5 is *plausibly* capable of the target workloads.
 
-This simulator does **not** claim to reproduce Raspberry Pi USB-audio timing, Linux scheduler behavior, thermals, or Box64/Wine performance exactly. Instead, it provides a conservative, explicit workload model that we can progressively replace with measured data.
+This simulator does **not** claim to reproduce Raspberry Pi USB-audio timing, Linux scheduler behaviour, thermals, or Box64/Wine performance exactly. Instead, it provides a conservative, explicit workload model that we can progressively replace with measured data.
 
 ## What exists in v0.1
 
@@ -55,7 +55,7 @@ python -m pytest -q
 
 ## Important limitation
 
-The current workload numbers are deliberately labeled **synthetic**. They are placeholders for the first architecture test only.
+The current workload numbers are deliberately labelled **synthetic**. They are placeholders for the first architecture test only.
 
 The next milestone is a desktop plugin benchmark harness that records real per-buffer DSP timing and memory use. Those measurements will become inputs to this simulator, making the Pi feasibility estimate much more defensible.
 
