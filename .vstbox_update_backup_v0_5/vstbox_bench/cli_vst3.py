@@ -37,7 +37,7 @@ def build_result(args: argparse.Namespace, native: dict[str, Any], machine: dict
     return {
         "schema_version": SCHEMA_VERSION,
         "benchmark_kind": "vst3-offline-callback",
-        "benchmark_version": "0.5.0",
+        "benchmark_version": "0.4.0",
         "captured_at_utc": datetime.now(timezone.utc).isoformat(),
         "machine": machine,
         "audio": {
@@ -63,13 +63,10 @@ def build_result(args: argparse.Namespace, native: dict[str, Any], machine: dict
         },
         "plugin": plugin,
         "timing": native["timing"],
-        "output": native.get("output", {}),
         "process": native["process"],
         "notes": [
             "This benchmark calls the plug-in directly through the VST3 processing API; JACK/CoreAudio device timing is not included.",
             "Timing includes the lightweight VSTBox host wrapper around each process call as well as the plug-in DSP.",
-            "A deterministic 120 BPM / 4/4 VST3 ProcessContext is supplied for each callback.",
-            "Output RMS/peak are measured outside the timed callback window from the main output bus.",
             "No Mac-to-Pi performance scaling has been applied.",
         ],
     }

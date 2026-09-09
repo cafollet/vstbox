@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(vstbox_native VERSION 0.5.0 LANGUAGES CXX)
+project(vstbox_native VERSION 0.3.0 LANGUAGES CXX)
 
 # On macOS, Steinberg's module loader and common helpers contain
 # Objective-C++ sources. Enable OBJCXX at top-level project scope,
@@ -60,10 +60,12 @@ if(VSTBOX_ENABLE_VST3)
             "${VST3_SDK_ROOT}/public.sdk/source/vst/hosting/module_mac.mm"
         )
 
-        # Steinberg's module_mac.mm refuses to compile unless ARC is enabled.
-        # Apply ARC only to Objective-C++ compilation units in this target.
-        target_compile_options(vstbox_vst3_adapter PRIVATE
-            "$<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>"
+        # Steinberg's macOS module loader requires Objective-C ARC.
+        # This mirrors the SDK's own audiohost build configuration.
+        set_source_files_properties(
+            "${VST3_SDK_ROOT}/public.sdk/source/vst/hosting/module_mac.mm"
+            PROPERTIES
+            COMPILE_FLAGS "-fobjc-arc"
         )
         target_link_libraries(vstbox_vst3_adapter PUBLIC
             "-framework CoreFoundation"

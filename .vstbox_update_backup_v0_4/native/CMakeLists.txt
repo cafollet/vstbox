@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(vstbox_native VERSION 0.5.0 LANGUAGES CXX)
+project(vstbox_native VERSION 0.3.0 LANGUAGES CXX)
 
 # On macOS, Steinberg's module loader and common helpers contain
 # Objective-C++ sources. Enable OBJCXX at top-level project scope,

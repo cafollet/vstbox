@@ -33,18 +33,12 @@ struct Vst3PluginInfo {
     std::int32_t audio_input_channels{};
     std::int32_t audio_output_channels{};
     std::uint32_t latency_samples{};
-    bool controller_present{};
-    bool controller_connected{};
-    bool component_state_synced{};
-    bool process_context_provided{};
     std::vector<Vst3ParameterInfo> parameters;
 };
 
 struct MidiDriveConfig {
     bool enabled{true};
     std::int16_t note{60};
-    std::int16_t note_step{1};
-    std::size_t voices{1};
     float velocity{0.8f};
     std::size_t cycle_callbacks{128};
     std::size_t gate_callbacks{96};
@@ -69,9 +63,11 @@ public:
 private:
     class Impl;
 
-    // info_ must exist before Impl construction because Impl::load() populates it.
+    // info_ must be constructed before impl_ because Impl::load()
+    // populates it during Impl construction.
     Vst3PluginInfo info_;
     std::unique_ptr<Impl> impl_;
+
     std::string last_error_;
     bool processing_ok_{true};
 };

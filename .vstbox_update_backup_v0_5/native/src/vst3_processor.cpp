@@ -1,19 +1,14 @@
 #include "vstbox/vst3_processor.hpp"
 
-#include "public.sdk/source/vst/hosting/connectionproxy.h"
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "public.sdk/source/vst/hosting/module.h"
 #include "public.sdk/source/vst/hosting/processdata.h"
-#include "public.sdk/source/vst/utility/memoryibstream.h"
 #include "public.sdk/source/vst/utility/stringconvert.h"
 #include "pluginterfaces/base/funknown.h"
-#include "pluginterfaces/base/funknownimpl.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
 #include "pluginterfaces/vst/ivstevents.h"
-#include "pluginterfaces/vst/ivstmessage.h"
-#include "pluginterfaces/vst/ivstprocesscontext.h"
 
 #include <algorithm>
 #include <cmath>
@@ -27,9 +22,6 @@ using namespace Steinberg;
 using namespace Steinberg::Vst;
 
 constexpr double kTwoPi = 6.283185307179586476925286766559;
-constexpr double kBenchmarkTempoBpm = 120.0;
-constexpr int32 kBenchmarkTimeSigNumerator = 4;
-constexpr int32 kBenchmarkTimeSigDenominator = 4;
 
 std::string to_utf8(const Steinberg::Vst::TChar* text) {
     if (!text) return {};
@@ -54,14 +46,6 @@ void activate_all_buses(IComponent& component, MediaType type, BusDirection dire
         component.activateBus(type, direction, index, true);
     }
 }
-
-class BenchmarkComponentHandler final : public U::Implements<U::Directly<IComponentHandler>> {
-public:
-    tresult PLUGIN_API beginEdit(ParamID) override { return kResultTrue; }
-    tresult PLUGIN_API performEdit(ParamID, ParamValue) override { return kResultTrue; }
-    tresult PLUGIN_API endEdit(ParamID) override { return kResultTrue; }
-    tresult PLUGIN_API restartComponent(int32) override { return kResultTrue; }
-};
 
 }  // namespace
 
@@ -102,18 +86,12 @@ public:
             throw std::runtime_error("VST3 setupProcessing failed");
         }
 
-        // Retry state synchronization after setupProcessing as some plug-ins only expose
-        // complete component state after their processing configuration is established.
-        synchronize_controller_state(info);
-
         if (!process_data_.prepare(*component_, static_cast<int32>(max_frames_), kSample32)) {
             throw std::runtime_error("Could not allocate VST3 process buffers");
         }
         process_data_.processMode = kRealtime;
         process_data_.symbolicSampleSize = kSample32;
         process_data_.inputEvents = component_->getBusCount(kEvent, kInput) > 0 ? &events_ : nullptr;
-        process_data_.processContext = &vst_process_context_;
-        info.process_context_provided = true;
 
         if (component_->setActive(true) != kResultOk) {
             throw std::runtime_error("VST3 setActive(true) failed");
@@ -126,12 +104,9 @@ public:
         }
         processing_ = true;
         info.latency_samples = processor_->getLatencySamples();
-
-        // Some real-world controllers expose or rename parameters only after setup/activation.
-        refresh_parameters(info);
     }
 
-    bool process(const vstbox::ProcessContext& context, float* left, float* right, std::string& error) noexcept {
+    bool process(const ProcessContext& context, float* left, float* right, std::string& error) noexcept {
         if (!processing_ || context.frames > max_frames_) {
             error = "VST3 process called before prepare or with an oversized buffer";
             return false;
@@ -142,7 +117,6 @@ public:
             fill_inputs(context);
             clear_outputs(context.frames);
             prepare_events(context.callback_index);
-            prepare_process_context(context);
 
             if (processor_->process(process_data_) != kResultOk) {
                 error = "VST3 processor->process returned an error";
@@ -203,7 +177,17 @@ private:
         }
         processor_ = Steinberg::owned(processor_raw);
 
-        initialize_controller(factory, info);
+        TUID controller_cid{};
+        if (component_->getControllerClassId(controller_cid) == kResultTrue) {
+            controller_ = factory.createInstance<IEditController>(VST3::UID(controller_cid));
+            if (controller_) {
+                if (controller_->initialize(host_.get()) == kResultOk) {
+                    controller_initialized_ = true;
+                } else {
+                    controller_.reset();
+                }
+            }
+        }
 
         info.path = plugin_path_;
         info.class_name = selected.name();
@@ -217,109 +201,33 @@ private:
         info.event_output_buses = component_->getBusCount(kEvent, kOutput);
         info.audio_input_channels = count_audio_channels(*component_, kInput);
         info.audio_output_channels = count_audio_channels(*component_, kOutput);
-        refresh_parameters(info);
-    }
 
-    void initialize_controller(const VST3::Hosting::PluginFactory& factory, Vst3PluginInfo& info) {
-        IEditController* controller_raw = nullptr;
-        if (component_->queryInterface(IEditController::iid, reinterpret_cast<void**>(&controller_raw)) == kResultTrue && controller_raw) {
-            controller_ = Steinberg::owned(controller_raw);
-            controller_is_component_ = true;
-            controller_initialized_ = true;  // already initialized through the component
-        } else {
-            TUID controller_cid{};
-            if (component_->getControllerClassId(controller_cid) == kResultTrue) {
-                controller_ = factory.createInstance<IEditController>(VST3::UID(controller_cid));
-                if (controller_) {
-                    if (controller_->initialize(host_.get()) == kResultOk) {
-                        controller_initialized_ = true;
-                    } else {
-                        controller_.reset();
-                    }
-                }
+        if (controller_) {
+            const auto count = controller_->getParameterCount();
+            info.parameters.reserve(static_cast<std::size_t>(std::max<int32>(0, count)));
+            for (int32 index = 0; index < count; ++index) {
+                ParameterInfo parameter{};
+                if (controller_->getParameterInfo(index, parameter) != kResultOk) continue;
+                info.parameters.push_back(Vst3ParameterInfo{
+                    static_cast<std::uint32_t>(parameter.id),
+                    to_utf8(parameter.title),
+                    to_utf8(parameter.units),
+                    parameter.defaultNormalizedValue,
+                    parameter.stepCount,
+                    static_cast<std::uint32_t>(parameter.flags),
+                });
             }
         }
-
-        info.controller_present = static_cast<bool>(controller_);
-        if (!controller_) return;
-
-        component_handler_ = Steinberg::owned(new BenchmarkComponentHandler());
-        if (controller_->setComponentHandler(component_handler_.get()) != kResultTrue) {
-            throw std::runtime_error("VST3 controller rejected host IComponentHandler");
-        }
-
-        if (!controller_is_component_) {
-            auto component_cp = U::cast<IConnectionPoint>(component_);
-            auto controller_cp = U::cast<IConnectionPoint>(controller_);
-            if (component_cp && controller_cp) {
-                component_connection_ = Steinberg::owned(new ConnectionProxy(component_cp));
-                controller_connection_ = Steinberg::owned(new ConnectionProxy(controller_cp));
-                if (component_connection_->connect(controller_cp) != kResultTrue ||
-                    controller_connection_->connect(component_cp) != kResultTrue) {
-                    throw std::runtime_error("Could not connect VST3 component and controller");
-                }
-                controller_connected_ = true;
-            }
-        } else {
-            controller_connected_ = true;
-        }
-        info.controller_connected = controller_connected_;
-
-        synchronize_controller_state(info);
     }
 
-    void synchronize_controller_state(Vst3PluginInfo& info) {
-        if (!controller_) return;
-
-        // Synchronize the controller from the DSP/component model before querying parameters.
-        // This mirrors Steinberg's host guidance for separated processor/controller plug-ins.
-        Steinberg::ResizableMemoryIBStream component_state;
-        if (component_->getState(&component_state) == kResultTrue) {
-            component_state.rewind();
-            if (controller_->setComponentState(&component_state) == kResultTrue) {
-                component_state_synced_ = true;
-            }
-        }
-        info.component_state_synced = component_state_synced_;
-    }
-
-    void refresh_parameters(Vst3PluginInfo& info) {
-        info.parameters.clear();
-        if (!controller_) return;
-
-        const auto count = controller_->getParameterCount();
-        info.parameters.reserve(static_cast<std::size_t>(std::max<int32>(0, count)));
-        for (int32 index = 0; index < count; ++index) {
-            ParameterInfo parameter{};
-            if (controller_->getParameterInfo(index, parameter) != kResultOk) continue;
-            info.parameters.push_back(Vst3ParameterInfo{
-                static_cast<std::uint32_t>(parameter.id),
-                to_utf8(parameter.title),
-                to_utf8(parameter.units),
-                parameter.defaultNormalizedValue,
-                parameter.stepCount,
-                static_cast<std::uint32_t>(parameter.flags),
-            });
-        }
-    }
-
-    void fill_inputs(const vstbox::ProcessContext& context) noexcept {
+    void fill_inputs(const ProcessContext& context) noexcept {
         const double frame_base = static_cast<double>(context.callback_index * context.frames);
         for (int32 bus = 0; bus < process_data_.numInputs; ++bus) {
             auto& bus_buffers = process_data_.inputs[bus];
             bus_buffers.silenceFlags = 0;
-
-            BusInfo bus_info{};
-            const bool is_main_input =
-                component_->getBusInfo(kAudio, kInput, bus, bus_info) == kResultTrue && bus_info.busType == kMain;
-
             for (int32 channel = 0; channel < bus_buffers.numChannels; ++channel) {
                 auto* buffer = bus_buffers.channelBuffers32[channel];
                 if (!buffer) continue;
-                if (!is_main_input) {
-                    std::fill(buffer, buffer + context.frames, 0.0f);
-                    continue;
-                }
                 for (std::size_t frame = 0; frame < context.frames; ++frame) {
                     const double sample_index = frame_base + static_cast<double>(frame);
                     buffer[frame] = static_cast<float>(0.2 * std::sin(kTwoPi * input_frequency_hz_ * sample_index / sample_rate_hz_));
@@ -378,34 +286,6 @@ private:
         if (midi_.gate_callbacks < midi_.cycle_callbacks && phase == midi_.gate_callbacks) emit_notes(false);
     }
 
-    void prepare_process_context(const vstbox::ProcessContext& context) noexcept {
-        const auto project_samples = static_cast<TSamples>(context.callback_index * context.frames);
-        const double quarter_notes = static_cast<double>(project_samples) / sample_rate_hz_ * (kBenchmarkTempoBpm / 60.0);
-        const double quarters_per_bar = static_cast<double>(kBenchmarkTimeSigNumerator) * 4.0 /
-                                        static_cast<double>(kBenchmarkTimeSigDenominator);
-
-        vst_process_context_ = {};
-        vst_process_context_.state = Steinberg::Vst::ProcessContext::kPlaying |
-                                     Steinberg::Vst::ProcessContext::kSystemTimeValid |
-                                     Steinberg::Vst::ProcessContext::kContTimeValid |
-                                     Steinberg::Vst::ProcessContext::kProjectTimeMusicValid |
-                                     Steinberg::Vst::ProcessContext::kBarPositionValid |
-                                     Steinberg::Vst::ProcessContext::kTempoValid |
-                                     Steinberg::Vst::ProcessContext::kTimeSigValid;
-        vst_process_context_.sampleRate = sample_rate_hz_;
-        vst_process_context_.projectTimeSamples = project_samples;
-        vst_process_context_.systemTime = static_cast<int64>(
-            std::llround(static_cast<double>(project_samples) * 1'000'000'000.0 / sample_rate_hz_));
-        vst_process_context_.continousTimeSamples = project_samples;
-        vst_process_context_.projectTimeMusic = quarter_notes;
-        vst_process_context_.barPositionMusic = quarters_per_bar > 0.0
-                                                    ? std::floor(quarter_notes / quarters_per_bar) * quarters_per_bar
-                                                    : 0.0;
-        vst_process_context_.tempo = kBenchmarkTempoBpm;
-        vst_process_context_.timeSigNumerator = kBenchmarkTimeSigNumerator;
-        vst_process_context_.timeSigDenominator = kBenchmarkTimeSigDenominator;
-    }
-
     void copy_main_output(std::size_t frames, float* left, float* right) noexcept {
         std::fill(left, left + frames, 0.0f);
         std::fill(right, right + frames, 0.0f);
@@ -431,27 +311,13 @@ private:
         process_data_.unprepare();
     }
 
-    void disconnect_components() noexcept {
-        if (component_connection_) component_connection_->disconnect();
-        if (controller_connection_) controller_connection_->disconnect();
-        component_connection_.reset();
-        controller_connection_.reset();
-        controller_connected_ = false;
-    }
-
     void shutdown() noexcept {
         stop_processing();
-        disconnect_components();
-
-        if (controller_) controller_->setComponentHandler(nullptr);
         processor_.reset();
-
-        if (controller_ && controller_initialized_ && !controller_is_component_) controller_->terminate();
+        if (controller_ && controller_initialized_) controller_->terminate();
         controller_.reset();
-
         if (component_ && component_initialized_) component_->terminate();
         component_.reset();
-        component_handler_.reset();
         host_.reset();
         module_.reset();
     }
@@ -465,17 +331,10 @@ private:
     Steinberg::IPtr<IComponent> component_;
     Steinberg::IPtr<IAudioProcessor> processor_;
     Steinberg::IPtr<IEditController> controller_;
-    Steinberg::IPtr<BenchmarkComponentHandler> component_handler_;
-    Steinberg::IPtr<ConnectionProxy> component_connection_;
-    Steinberg::IPtr<ConnectionProxy> controller_connection_;
     HostProcessData process_data_;
     EventList events_;
-    Steinberg::Vst::ProcessContext vst_process_context_{};
     bool component_initialized_{false};
     bool controller_initialized_{false};
-    bool controller_is_component_{false};
-    bool controller_connected_{false};
-    bool component_state_synced_{false};
     bool active_{false};
     bool processing_{false};
     double sample_rate_hz_{48000.0};

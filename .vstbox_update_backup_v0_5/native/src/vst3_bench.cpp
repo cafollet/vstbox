@@ -146,10 +146,6 @@ void print_plugin_json(const vstbox::Vst3PluginInfo& info) {
               << "    \"audio_input_channels\": " << info.audio_input_channels << ",\n"
               << "    \"audio_output_channels\": " << info.audio_output_channels << ",\n"
               << "    \"latency_samples\": " << info.latency_samples << ",\n"
-              << "    \"controller_present\": " << (info.controller_present ? "true" : "false") << ",\n"
-              << "    \"controller_connected\": " << (info.controller_connected ? "true" : "false") << ",\n"
-              << "    \"component_state_synced\": " << (info.component_state_synced ? "true" : "false") << ",\n"
-              << "    \"process_context_provided\": " << (info.process_context_provided ? "true" : "false") << ",\n"
               << "    \"parameters\": [\n";
     for (std::size_t i = 0; i < info.parameters.size(); ++i) {
         const auto& p = info.parameters[i];
@@ -194,12 +190,6 @@ int main(int argc, char** argv) {
 
         std::vector<double> timings;
         timings.reserve(options.callbacks);
-        long double output_sum_squares = 0.0L;
-        std::uint64_t output_samples_observed = 0;
-        std::uint64_t output_non_silent_samples = 0;
-        double output_peak = 0.0;
-        constexpr double kSilenceThreshold = 1e-9;
-
         using clock = std::chrono::steady_clock;
         for (std::size_t i = 0; i < options.callbacks; ++i) {
             context.callback_index = options.warmup + i;
@@ -208,18 +198,6 @@ int main(int argc, char** argv) {
             const auto stop = clock::now();
             if (!processor.processing_ok()) throw std::runtime_error(processor.last_error());
             timings.push_back(std::chrono::duration<double, std::milli>(stop - start).count());
-
-            for (std::size_t frame = 0; frame < options.buffer; ++frame) {
-                const double l = static_cast<double>(left[frame]);
-                const double r = static_cast<double>(right[frame]);
-                for (double sample : {l, r}) {
-                    const double magnitude = std::abs(sample);
-                    output_peak = std::max(output_peak, magnitude);
-                    output_sum_squares += static_cast<long double>(sample) * static_cast<long double>(sample);
-                    ++output_samples_observed;
-                    if (magnitude > kSilenceThreshold) ++output_non_silent_samples;
-                }
-            }
         }
 
         std::sort(timings.begin(), timings.end());
@@ -230,10 +208,6 @@ int main(int argc, char** argv) {
         const auto misses = static_cast<std::size_t>(std::count_if(timings.begin(), timings.end(), [deadline](double ms) { return ms > deadline; }));
         const double miss_rate = timings.empty() ? 0.0 : static_cast<double>(misses) / static_cast<double>(timings.size());
         const auto rss = peak_rss_bytes();
-        const double output_rms = output_samples_observed == 0
-                                      ? 0.0
-                                      : std::sqrt(static_cast<double>(output_sum_squares /
-                                                                     static_cast<long double>(output_samples_observed)));
 
         if (options.json) {
             std::cout << std::fixed << std::setprecision(9) << "{\n";
@@ -247,12 +221,6 @@ int main(int argc, char** argv) {
                       << "    \"deadline_ms\": " << deadline << ",\n"
                       << "    \"deadline_misses\": " << misses << ",\n"
                       << "    \"miss_rate\": " << miss_rate << "\n"
-                      << "  },\n"
-                      << "  \"output\": {\n"
-                      << "    \"rms\": " << output_rms << ",\n"
-                      << "    \"peak\": " << output_peak << ",\n"
-                      << "    \"non_silent_samples\": " << output_non_silent_samples << ",\n"
-                      << "    \"samples_observed\": " << output_samples_observed << "\n"
                       << "  },\n"
                       << "  \"process\": {\n"
                       << "    \"peak_rss_bytes\": " << rss << "\n"
@@ -270,12 +238,6 @@ int main(int argc, char** argv) {
                       << "worst:       " << (timings.empty() ? 0.0 : timings.back()) << " ms\n"
                       << "misses:      " << misses << "/" << timings.size() << "\n"
                       << "parameters:  " << info.parameters.size() << "\n"
-                      << "controller:  " << (info.controller_present ? "present" : "absent")
-                      << (info.controller_connected ? ", connected" : ", not connected") << "\n"
-                      << "state sync:  " << (info.component_state_synced ? "yes" : "no") << "\n"
-                      << "context:     " << (info.process_context_provided ? "yes" : "no") << "\n"
-                      << "output RMS:  " << output_rms << "\n"
-                      << "output peak: " << output_peak << "\n"
                       << "voices:      " << (options.midi ? options.voices : 0) << "\n";
         }
         return 0;

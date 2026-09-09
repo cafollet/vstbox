@@ -61,19 +61,16 @@ def test_vst3_result_keeps_raw_measurement_and_machine_metadata() -> None:
     native = {
         "plugin": {"class_name": "ADelay", "parameters": []},
         "timing": {"p99_ms": 0.25, "deadline_misses": 0},
-        "output": {"rms": 0.2, "peak": 0.5, "non_silent_samples": 100, "samples_observed": 256},
         "process": {"peak_rss_bytes": 1024},
     }
     machine = {"architecture": "x86_64", "cpu_brand": "test"}
     result = build_result(args, native, machine)
 
     assert result["benchmark_kind"] == "vst3-offline-callback"
-    assert result["benchmark_version"] == "0.5.0"
+    assert result["benchmark_version"] == "0.4.0"
     assert result["machine"] == machine
     assert result["plugin"]["class_name"] == "ADelay"
     assert result["timing"]["p99_ms"] == 0.25
-    assert result["output"]["rms"] == 0.2
-    assert result["output"]["peak"] == 0.5
     assert result["audio"]["deadline_ms"] == 128 / 48_000 * 1000
     assert result["workload"]["midi"]["voices"] == 4
     assert result["workload"]["midi"]["note_step"] == 1

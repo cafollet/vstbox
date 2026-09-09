@@ -1,6 +1,6 @@
 [project]
 name = "vstbox-pre-hardware"
-version = "0.5.1"
+version = "0.5.0"
 description = "Pre-hardware feasibility and real-plugin benchmark tooling for a Raspberry Pi 5 based standalone VST appliance"
 requires-python = ">=3.10"
 dependencies = []
@@ -23,5 +23,3 @@ packages = ["vstbox_sim", "vstbox_bench"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
-testpaths = ["tests"]
-norecursedirs = ["external", "build", ".venv", ".git", ".vstbox_update_backup*"]

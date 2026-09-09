@@ -27,8 +27,6 @@ struct Options {
     std::size_t warmup{1000};
     bool midi{true};
     int midi_note{60};
-    int midi_note_step{1};
-    std::size_t voices{1};
     double midi_velocity{0.8};
     std::size_t midi_cycle{128};
     std::size_t midi_gate{96};
@@ -69,8 +67,6 @@ Options parse_args(int argc, char** argv) {
         else if (arg == "--warmup") options.warmup = parse_size(require_value("--warmup"), "warmup", true);
         else if (arg == "--no-midi") options.midi = false;
         else if (arg == "--midi-note") options.midi_note = static_cast<int>(parse_size(require_value("--midi-note"), "MIDI note", true));
-        else if (arg == "--midi-note-step") options.midi_note_step = static_cast<int>(parse_size(require_value("--midi-note-step"), "MIDI note step"));
-        else if (arg == "--voices") options.voices = parse_size(require_value("--voices"), "voices");
         else if (arg == "--midi-velocity") options.midi_velocity = parse_double(require_value("--midi-velocity"), "MIDI velocity");
         else if (arg == "--midi-cycle") options.midi_cycle = parse_size(require_value("--midi-cycle"), "MIDI cycle");
         else if (arg == "--midi-gate") options.midi_gate = parse_size(require_value("--midi-gate"), "MIDI gate", true);
@@ -78,8 +74,7 @@ Options parse_args(int argc, char** argv) {
         else if (arg == "--help" || arg == "-h") {
             std::cout << "vstbox_vst3_bench --plugin /path/Plugin.vst3 [--class NAME] [--sample-rate 48000] "
                          "[--buffer 128] [--callbacks 20000] [--warmup 1000] [--no-midi] "
-                         "[--midi-note 60] [--midi-note-step 1] [--voices 1] [--midi-velocity 0.8] "
-                         "[--midi-cycle 128] [--midi-gate 96] [--json]\n";
+                         "[--midi-note 60] [--midi-velocity 0.8] [--midi-cycle 128] [--midi-gate 96] [--json]\n";
             std::exit(0);
         } else {
             throw std::runtime_error("Unknown argument: " + arg);
@@ -88,8 +83,6 @@ Options parse_args(int argc, char** argv) {
     if (options.plugin.empty()) throw std::runtime_error("--plugin is required");
     if (options.midi_note < 0 || options.midi_note > 127) throw std::runtime_error("MIDI note must be in [0, 127]");
     if (options.midi_velocity < 0.0 || options.midi_velocity > 1.0) throw std::runtime_error("MIDI velocity must be in [0, 1]");
-    const auto highest_note = options.midi_note + static_cast<int>((options.voices - 1) * static_cast<std::size_t>(options.midi_note_step));
-    if (highest_note > 127) throw std::runtime_error("Requested chord exceeds MIDI note 127; lower --midi-note, --midi-note-step, or --voices");
     if (options.midi_gate >= options.midi_cycle) throw std::runtime_error("MIDI gate must be smaller than MIDI cycle");
     return options;
 }
@@ -146,10 +139,6 @@ void print_plugin_json(const vstbox::Vst3PluginInfo& info) {
               << "    \"audio_input_channels\": " << info.audio_input_channels << ",\n"
               << "    \"audio_output_channels\": " << info.audio_output_channels << ",\n"
               << "    \"latency_samples\": " << info.latency_samples << ",\n"
-              << "    \"controller_present\": " << (info.controller_present ? "true" : "false") << ",\n"
-              << "    \"controller_connected\": " << (info.controller_connected ? "true" : "false") << ",\n"
-              << "    \"component_state_synced\": " << (info.component_state_synced ? "true" : "false") << ",\n"
-              << "    \"process_context_provided\": " << (info.process_context_provided ? "true" : "false") << ",\n"
               << "    \"parameters\": [\n";
     for (std::size_t i = 0; i < info.parameters.size(); ++i) {
         const auto& p = info.parameters[i];
@@ -173,8 +162,6 @@ int main(int argc, char** argv) {
         vstbox::MidiDriveConfig midi{};
         midi.enabled = options.midi;
         midi.note = static_cast<std::int16_t>(options.midi_note);
-        midi.note_step = static_cast<std::int16_t>(options.midi_note_step);
-        midi.voices = options.voices;
         midi.velocity = static_cast<float>(options.midi_velocity);
         midi.cycle_callbacks = options.midi_cycle;
         midi.gate_callbacks = options.midi_gate;
@@ -194,12 +181,6 @@ int main(int argc, char** argv) {
 
         std::vector<double> timings;
         timings.reserve(options.callbacks);
-        long double output_sum_squares = 0.0L;
-        std::uint64_t output_samples_observed = 0;
-        std::uint64_t output_non_silent_samples = 0;
-        double output_peak = 0.0;
-        constexpr double kSilenceThreshold = 1e-9;
-
         using clock = std::chrono::steady_clock;
         for (std::size_t i = 0; i < options.callbacks; ++i) {
             context.callback_index = options.warmup + i;
@@ -208,18 +189,6 @@ int main(int argc, char** argv) {
             const auto stop = clock::now();
             if (!processor.processing_ok()) throw std::runtime_error(processor.last_error());
             timings.push_back(std::chrono::duration<double, std::milli>(stop - start).count());
-
-            for (std::size_t frame = 0; frame < options.buffer; ++frame) {
-                const double l = static_cast<double>(left[frame]);
-                const double r = static_cast<double>(right[frame]);
-                for (double sample : {l, r}) {
-                    const double magnitude = std::abs(sample);
-                    output_peak = std::max(output_peak, magnitude);
-                    output_sum_squares += static_cast<long double>(sample) * static_cast<long double>(sample);
-                    ++output_samples_observed;
-                    if (magnitude > kSilenceThreshold) ++output_non_silent_samples;
-                }
-            }
         }
 
         std::sort(timings.begin(), timings.end());
@@ -230,10 +199,6 @@ int main(int argc, char** argv) {
         const auto misses = static_cast<std::size_t>(std::count_if(timings.begin(), timings.end(), [deadline](double ms) { return ms > deadline; }));
         const double miss_rate = timings.empty() ? 0.0 : static_cast<double>(misses) / static_cast<double>(timings.size());
         const auto rss = peak_rss_bytes();
-        const double output_rms = output_samples_observed == 0
-                                      ? 0.0
-                                      : std::sqrt(static_cast<double>(output_sum_squares /
-                                                                     static_cast<long double>(output_samples_observed)));
 
         if (options.json) {
             std::cout << std::fixed << std::setprecision(9) << "{\n";
@@ -247,12 +212,6 @@ int main(int argc, char** argv) {
                       << "    \"deadline_ms\": " << deadline << ",\n"
                       << "    \"deadline_misses\": " << misses << ",\n"
                       << "    \"miss_rate\": " << miss_rate << "\n"
-                      << "  },\n"
-                      << "  \"output\": {\n"
-                      << "    \"rms\": " << output_rms << ",\n"
-                      << "    \"peak\": " << output_peak << ",\n"
-                      << "    \"non_silent_samples\": " << output_non_silent_samples << ",\n"
-                      << "    \"samples_observed\": " << output_samples_observed << "\n"
                       << "  },\n"
                       << "  \"process\": {\n"
                       << "    \"peak_rss_bytes\": " << rss << "\n"
@@ -269,14 +228,7 @@ int main(int argc, char** argv) {
                       << "p99:         " << quantile(timings, 0.99) << " ms\n"
                       << "worst:       " << (timings.empty() ? 0.0 : timings.back()) << " ms\n"
                       << "misses:      " << misses << "/" << timings.size() << "\n"
-                      << "parameters:  " << info.parameters.size() << "\n"
-                      << "controller:  " << (info.controller_present ? "present" : "absent")
-                      << (info.controller_connected ? ", connected" : ", not connected") << "\n"
-                      << "state sync:  " << (info.component_state_synced ? "yes" : "no") << "\n"
-                      << "context:     " << (info.process_context_provided ? "yes" : "no") << "\n"
-                      << "output RMS:  " << output_rms << "\n"
-                      << "output peak: " << output_peak << "\n"
-                      << "voices:      " << (options.midi ? options.voices : 0) << "\n";
+                      << "parameters:  " << info.parameters.size() << "\n";
         }
         return 0;
     } catch (const std::exception& error) {

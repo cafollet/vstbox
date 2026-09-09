@@ -33,10 +33,6 @@ struct Vst3PluginInfo {
     std::int32_t audio_input_channels{};
     std::int32_t audio_output_channels{};
     std::uint32_t latency_samples{};
-    bool controller_present{};
-    bool controller_connected{};
-    bool component_state_synced{};
-    bool process_context_provided{};
     std::vector<Vst3ParameterInfo> parameters;
 };
 

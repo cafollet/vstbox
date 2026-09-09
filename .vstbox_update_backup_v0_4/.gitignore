@@ -12,5 +12,18 @@ benchmarks/profiles/*.json
 benchmarks/results/*.json
 external/vst3sdk/
 build/vst3sdk/
-benchmarks/results/**/*.json
-benchmarks/results/**/*.txt
+
+# Local development
+.venv/
+.DS_Store
+__pycache__/
+*.pyc
+
+# Generated builds
+build/
+
+# Re-downloadable external dependencies
+external/
+
+# VSTBox update backups
+.vstbox_update_backup_*/

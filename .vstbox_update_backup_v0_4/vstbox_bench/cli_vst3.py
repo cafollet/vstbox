@@ -21,8 +21,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup", type=int, default=1_000)
     parser.add_argument("--no-midi", action="store_true", help="Do not inject deterministic note events")
     parser.add_argument("--midi-note", type=int, default=60)
-    parser.add_argument("--midi-note-step", type=int, default=1, help="Semitone spacing between simultaneous test notes")
-    parser.add_argument("--voices", type=int, default=1, help="Number of simultaneous deterministic MIDI notes")
     parser.add_argument("--midi-velocity", type=float, default=0.8)
     parser.add_argument("--midi-cycle", type=int, default=128)
     parser.add_argument("--midi-gate", type=int, default=96)
@@ -37,7 +35,7 @@ def build_result(args: argparse.Namespace, native: dict[str, Any], machine: dict
     return {
         "schema_version": SCHEMA_VERSION,
         "benchmark_kind": "vst3-offline-callback",
-        "benchmark_version": "0.5.0",
+        "benchmark_version": "0.3.0",
         "captured_at_utc": datetime.now(timezone.utc).isoformat(),
         "machine": machine,
         "audio": {
@@ -54,8 +52,6 @@ def build_result(args: argparse.Namespace, native: dict[str, Any], machine: dict
             "midi": {
                 "enabled": not args.no_midi,
                 "note": args.midi_note,
-                "note_step": args.midi_note_step,
-                "voices": args.voices,
                 "velocity": args.midi_velocity,
                 "cycle_callbacks": args.midi_cycle,
                 "gate_callbacks": args.midi_gate,
@@ -63,13 +59,10 @@ def build_result(args: argparse.Namespace, native: dict[str, Any], machine: dict
         },
         "plugin": plugin,
         "timing": native["timing"],
-        "output": native.get("output", {}),
         "process": native["process"],
         "notes": [
             "This benchmark calls the plug-in directly through the VST3 processing API; JACK/CoreAudio device timing is not included.",
             "Timing includes the lightweight VSTBox host wrapper around each process call as well as the plug-in DSP.",
-            "A deterministic 120 BPM / 4/4 VST3 ProcessContext is supplied for each callback.",
-            "Output RMS/peak are measured outside the timed callback window from the main output bus.",
             "No Mac-to-Pi performance scaling has been applied.",
         ],
     }
@@ -81,10 +74,6 @@ def main() -> int:
         raise SystemExit("sample-rate, buffer, and callbacks must be positive; warmup cannot be negative")
     if not 0 <= args.midi_note <= 127:
         raise SystemExit("midi-note must be between 0 and 127")
-    if args.voices <= 0 or args.midi_note_step <= 0:
-        raise SystemExit("voices and midi-note-step must be positive")
-    if args.midi_note + (args.voices - 1) * args.midi_note_step > 127:
-        raise SystemExit("requested chord exceeds MIDI note 127")
     if not 0.0 <= args.midi_velocity <= 1.0:
         raise SystemExit("midi-velocity must be between 0 and 1")
     if args.midi_cycle <= 0 or args.midi_gate < 0 or args.midi_gate >= args.midi_cycle:
@@ -99,8 +88,6 @@ def main() -> int:
         warmup_callbacks=args.warmup,
         midi_enabled=not args.no_midi,
         midi_note=args.midi_note,
-        midi_note_step=args.midi_note_step,
-        midi_voices=args.voices,
         midi_velocity=args.midi_velocity,
         midi_cycle=args.midi_cycle,
         midi_gate=args.midi_gate,
